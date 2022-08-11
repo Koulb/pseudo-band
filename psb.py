@@ -23,14 +23,6 @@ class PseudoBand:
 
 	@functools.lru_cache(343)
 	def reciprocal_coords(self, number):
-		#old
-		# middle = (self.states**3) // 2
-		# position = number + middle
-		# result = self.reciprocal_coeffs[position]
-		# h = result[0]
-		# k = result[1]
-		# l = result[2]
-
 		n = self.states3 // 2
 		s = number + n
 		floor = self.states // 2
@@ -62,8 +54,8 @@ class PseudoBand:
 				h_matrix[row][col] = self.kinetic_factor * self.kinetic_energy(k_vector, G_vector)
 			else:
 				# G_vector = self.reciprocal_coords(row - col) @ basis#- middle_point
-				G_row_vector = self.reciprocal_coords(row - middle_point) @ basis#- middle_point
-				G_col_vector = self.reciprocal_coords(col - middle_point) @ basis#- middle_point
+				G_row_vector = self.reciprocal_coords(row - middle_point) @ self.basis#- middle_point
+				G_col_vector = self.reciprocal_coords(col - middle_point) @ self.basis#- middle_point
 				G_vector = G_row_vector - G_col_vector
 
 				form_factor = self.form_factors.get(G_vector @ G_vector)
@@ -103,8 +95,6 @@ if __name__ == "__main__":
 	# lattice constant in bohr radii
 	lattice_constant = 10.26
 
-	rytoev = lambda *i: np.array(i) * 13.6059
-
 	# symmetric form factors (From Rydbergs to Hartree)
 	form_factors_dict = {
 		3.0: -0.5*0.21,
@@ -120,7 +110,7 @@ if __name__ == "__main__":
 	])
 
 	# sample points per k-path
-	k_sampling = 100#100
+	k_sampling = 100
 
 	# symmetry points in the Brillouin zone
 	G = np.array([0, 0, 0])
@@ -133,37 +123,57 @@ if __name__ == "__main__":
 	# k-paths
 	lambd = np.linspace(L, G, k_sampling, endpoint=False)
 	delta = np.linspace(G, X, k_sampling, endpoint=False)
-	x_uk = np.linspace(X, U, k_sampling // 4, endpoint=False)
-	sigma = np.linspace(K, G, k_sampling, endpoint=True)
+	x_uk  = np.linspace(X, U, k_sampling // 4, endpoint=False)
+	sigma = np.linspace(K, G, k_sampling+1, endpoint=True)
 
+	# time
 	start_time = time()
 
 	psd_band  = PseudoBand(states,lattice_constant,form_factors_dict,basis)
 	test_path = [lambd, delta, x_uk, sigma]
 	
 	#Calculation
-	bands = np.real(psd_band.band_structure(test_path, 0, 8))#
+	bands = np.real(psd_band.band_structure(test_path, 0, 8))
 	bands -= max(bands[3])
-	print(bands[0])
-	to_hartree = 27.2114
-
+	to_ev = 27.2114
 	plt.figure(figsize=(15, 9))
+	colors = ['red','orange','green','blue', 'purple']
 
-	for band in bands:
-		plt.plot(to_hartree*np.array(band))
+	xticks = k_sampling*np.array([0, 1, 2, 2.25, 3.25])
+	for index, band in enumerate(bands):
+		plt.plot(to_ev*np.array(band), '-', c = colors[index%len(colors)])
 
-	xticks = k_sampling*np.array([0, 0.5, 1, 1.5, 2, 2.25, 2.75, 3.25])
-	plt.xticks(xticks, (r'$L$', r'$\Lambda$', r'$\Gamma$', r'$\Delta$',\
-			   r'$X$', r'$U,K$', r'$\Sigma$', r'$\Gamma$'), fontsize=16)
+	# k_sampling_max_val = 3.25
+	# xticks = k_sampling*np.array([0, 0.5, 1, 1.5, 2, 2.25, 2.75, k_sampling_max_val])
+	# plt.xticks(xticks, (r'$L$', r'$\Lambda$', r'$\Gamma$', r'$\Delta$',\
+	# 		   r'$X$', r'$U,K$', r'$\Sigma$', r'$\Gamma$'), fontsize=16)
+
+	plt.xticks(xticks, (r'$L$',  r'$\Gamma$', \
+			   r'$X$', r'$K$',  r'$\Gamma$'), fontsize=16)
 	plt.xlabel('k points', fontsize=18)
-
 	plt.yticks(fontsize=16)
 	plt.ylabel('Energy, eV', fontsize=18)
-	# check = np.load('/home/apolyukhin/Notebooks/pseudpotential/check.npy')
-	# plt.plot(check, 'x')
+	plt.ylim([-6, 6])
+
+	#Experimental data
+	experiment_data = dict({'L3_': [0, -1.325056599279634],
+	                        'G25': [1, -0.028929928381481673],
+	                        'X4':  [2, -3.0711649633039038],
+	                        'G25_':[3.25,  -0.05985524267059894],
+	                        'L1':  [0, 1.8041519229819052],   
+	                        'G15': [1, 3.3530148063968905],   
+	                        'X1':  [2, 0.9237243149491787],   
+	                        'G15_':[3.25, 3.3224062200296203],   
+	                        'L3':  [0, 3.987978274998385],
+	                        'G2_': [1, 3.832490203605378],
+	                        'G2':  [3.25, 3.8016915804849996],
+						   })
+
+	for key, value in experiment_data.items():
+	    plt.scatter(k_sampling*value[0], value[1], c ='black', label = key)
+	# plt.legend() 
 
 	print('Execution time is {} seconds'.format(round(time() - start_time),1))
-
 	plt.show()
 
 
