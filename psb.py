@@ -7,7 +7,7 @@ from matplotlib import pyplot as plt
 
 
 class PseudoBand:
-    def __init__(self, states, lat_constant, form_factors, basis):
+    def __init__(self, states, lat_constant, form_factors_sym, form_factors_asym, basis):
         self.states = states
         self.reciprocal_coeffs_ar = np.linspace(
             -states // 2 + 1, states // 2, states, dtype=int)
@@ -15,7 +15,8 @@ class PseudoBand:
             self.reciprocal_coeffs_ar, repeat=3))
 
         self.lat_constant = lat_constant
-        self.form_factors = form_factors
+        self.form_factors_sym = form_factors_sym
+        self.form_factors_asym = form_factors_asym
         self.basis = basis
 
         # Usefull constants
@@ -42,15 +43,18 @@ class PseudoBand:
 
         return 0.5 * result @ result
 
-    def potential_energy(self, G_vector, factor):
-        result = factor * np.cos(2.0 * np.pi * G_vector @ self.tau)
-        # result += 1j * factor2 * np.sin(2.0 * np.pi * G_vector @ tau)
+    def potential_energy(self, G_vector, factor_sym, factor_asym):
+        result = 0.0
+        if(factor_sym):
+            result += factor_sym * np.cos(2.0 * np.pi * G_vector @ self.tau)
+        if (factor_asym):
+            result += 1j * factor_asym * np.sin(2.0 * np.pi * G_vector @ self.tau)
 
         return result
 
     def hamiltonian(self, k_vector):
 
-        h_matrix = np.empty((self.states3, self.states3))
+        h_matrix = np.empty((self.states3, self.states3), dtype=complex)
         middle_point = self.states3 // 2
 
         # self.states3_ar
@@ -67,9 +71,10 @@ class PseudoBand:
                     col - middle_point) @ self.basis  # - middle_point
                 G_vector = G_row_vector - G_col_vector
 
-                form_factor = self.form_factors.get(G_vector @ G_vector)
+                ff_sym = self.form_factors_sym.get(G_vector @ G_vector)
+                ff_asym = self.form_factors_asym.get(G_vector @ G_vector)
                 h_matrix[row][col] = self.potential_energy(
-                    G_vector, form_factor) if form_factor else 0.0
+                    G_vector, ff_sym, ff_asym) if (ff_sym or ff_asym) else 0.0
 
         return h_matrix
 
@@ -86,18 +91,18 @@ class PseudoBand:
 
 
 if __name__ == "__main__":
-    # reciprocal_coords test
-    psd_band = PseudoBand(5, 1, 1, 1)
-    print(psd_band.reciprocal_coords(62))
+    # # reciprocal_coords test
+    # psd_band = PseudoBand(5, 1, 1, 1, 1)
+    # print(psd_band.reciprocal_coords(62))
 
-    # kinetic_energy test
-    k_test = np.array([1, 1, 1])
-    G_test = np.array([1, 1, 1])
-    print(psd_band.kinetic_energy(k_test, G_test))
+    # # kinetic_energy test
+    # k_test = np.array([1, 1, 1])
+    # G_test = np.array([1, 1, 1])
+    # print(psd_band.kinetic_energy(k_test, G_test))
 
-    # potential energy test
-    factor = 1.0
-    print(psd_band.potential_energy(G_test, factor))
+    # # potential energy test
+    # factor = 1.0
+    # print(psd_band.potential_energy(G_test, factor, factor))
 
     # Band_structure test
     states = 7
@@ -106,11 +111,15 @@ if __name__ == "__main__":
     lattice_constant = 10.26
 
     # symmetric form factors (From Rydbergs to Hartree)
-    form_factors_dict = {
+    ff_dict_sym = {
         3.0: -0.5 * 0.21,
         8.0: 0.5 * 0.04,
         11.0: 0.5 * 0.08
     }
+
+    ff_dict_asym = {}
+
+    print("Si band structure calculation")
 
     # in units of 2 pi / a
     basis = np.array([
@@ -121,6 +130,7 @@ if __name__ == "__main__":
 
     # sample points per k-path
     k_sampling = 100
+    print("Total number of K-points = ", k_sampling)
 
     # symmetry points in the Brillouin zone
     G = np.array([0, 0, 0])
@@ -136,10 +146,11 @@ if __name__ == "__main__":
     x_uk = np.linspace(X, U, k_sampling // 4, endpoint=False)
     sigma = np.linspace(K, G, k_sampling + 1, endpoint=True)
 
+    print("Starting calculation: ")
     # time
     start_time = time()
 
-    psd_band = PseudoBand(states, lattice_constant, form_factors_dict, basis)
+    psd_band = PseudoBand(states, lattice_constant, ff_dict_sym, ff_dict_asym, basis)
     test_path = [lambd, delta, x_uk, sigma]
 
     # Calculation
@@ -160,7 +171,7 @@ if __name__ == "__main__":
     plt.ylabel('Energy, eV', fontsize=18)
     plt.ylim([-6, 6])
 
-    # Experimental data
+    # Experimental data 
     experiment_data = dict({'L3_': [0, -1.325056599279634],
                             'G25': [1, -0.028929928381481673],
                             'X4': [2, -3.0711649633039038],

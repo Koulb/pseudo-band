@@ -14,7 +14,7 @@ from psb import PseudoBand
 states = 7
 
 # lattice constant in bohr radii
-lattice_constant = 10.26
+lattice_constant = 10.683
 
 # basis in units of 2 pi / a
 basis = np.array([
@@ -23,15 +23,22 @@ basis = np.array([
     [1, 1, -1]
 ])
 
-# symmetric form factors (From Rydbergs to Hartree)
-form_factors_dict = {
-    3.0: -0.5 * 0.21,
-    8.0: 0.5 * 0.04,
-    11.0: 0.5 * 0.08
+ff_dict_sym = {
+    3.0: -0.5 * 0.23,
+    8.0: 0.5 * 0.01,
+    11.0: 0.5 * 0.06
+}
+
+ff_dict_asym = {
+    3.0: 0.5 * 0.07,
+    4.0: 0.5 * 0.05,
+    11.0: 0.5 * 0.01
 }
 
 bands_start = 0
 bands_end = 8
+
+print("GaAs band structure calculation")
 
 # number of threads
 num_threads = 5
@@ -40,7 +47,7 @@ num_threads = 5
 k_sampling = 100
 while((3.25 * k_sampling + 1) % num_threads != 0):
     k_sampling += 1
-print(k_sampling)
+print("Total number of K-points = ", k_sampling)
 
 # symmetry points in the Brillouin zone
 G = np.array([0, 0, 0])
@@ -66,12 +73,12 @@ test_path_ed = np.array_split(np.vstack(test_path), num_threads)
 
 
 def calculate_band(path):
-    psd = PseudoBand(states, lattice_constant, form_factors_dict, basis)
+    psd = PseudoBand(states, lattice_constant, ff_dict_sym, ff_dict_asym, basis)
     band = np.real(psd.band_structure(path, bands_start, bands_end))
 
     return band
 
-
+print("Starting parallel calculation: ")
 # Multi process
 pool = Pool(num_threads)
 
@@ -94,7 +101,7 @@ while ncompleted < ntotal:
             sys.stdout.flush()
             completed.append(itask)
             ncompleted += 1
-            print('task # ', itask, ' is ready')
+            print('thread # ', itask, ' is ready')
     completed.sort()
     completed.reverse()
     for itask in completed:
@@ -119,7 +126,29 @@ plt.xticks(xticks, (r'$L$', r'$\Gamma$',
 plt.xlabel('k points', fontsize=18)
 plt.yticks(fontsize=16)
 plt.ylabel('Energy, eV', fontsize=18)
-plt.ylim([-6, 6])
+plt.ylim([-4, 7])
+
+# Experimental data
+experiment_data = dict({'L3_': [0, -0.9517525485267431],
+                        'G15o': [1, -0.016129032258064058],
+                        'X5': [2, -2.2554112554112553],
+                        'G15o_': [3.25, 0.045105432202205975],
+                        'L1': [0, 1.6934785644463055],
+                        'G1': [1, 1.435483870967742],
+                        'X1': [2, 1.8091746962714694],
+                        'G1_': [3.25, 1.432202206395754],
+                        'L3': [0, 5.016059209607596],
+                        'G15': [1, 4.516129032258064],
+                        'X3': [2, 2.1156263091746963],
+                        'G15_': [3.25, 4.561164641809802],
+                        })
+
+for key, value in experiment_data.items():
+    plt.scatter(k_sampling * value[0], value[1], c='black')
+
+plt.scatter(0, -10, c='black', label='Cohen and Bergstresser (1966)')
+plt.title('Band structure of GaAs')
+plt.legend()
 
 print('Execution time is {} seconds'.format(round(time() - start_time), 1))
 
